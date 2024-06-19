@@ -119,6 +119,8 @@ class IPATool(object):
         self.appVerIds = None
         
         self.jsonOut = None
+        # self.serverAddress = "http://192.168.0.210"
+        self.serverAddress = "http://192.168.2.1"
     
     def tool_main(self):
         commparser = argparse.ArgumentParser(description='IPATool-Python Commands.', add_help=False)
@@ -171,6 +173,15 @@ class IPATool(object):
         his_p.add_argument('--output-dir', '-o', dest='output_dir', default='.')
         add_auth_options(his_p)
         his_p.set_defaults(func=self.handleHistoryVersion)
+
+
+        getVer_p = subp.add_parser('getAllVersionInfo')
+        add_auth_options(getVer_p)
+        getVer_p.add_argument('--appId', '-i', dest='appId')
+        getVer_p.add_argument('--purchase', action='store_true')
+        getVer_p.add_argument('--output-dir', '-o', dest='output_dir', default='.')
+        getVer_p.set_defaults(func=self.getAllVersionInfo)
+
 
         parser = argparse.ArgumentParser(description='IPATool-Python.', parents=[commparser])
         parser.add_argument('--log-level', '-l', dest='log_level', default='info',
@@ -367,7 +378,7 @@ class IPATool(object):
                 args.purchase = False
 
             downResp = Store.download(self.appId, '', isRedownload=not args.purchase)
-            logger.debug('Got download info: %s', downResp)
+            logger.info('Got download info: %s', downResp)
             if args.purchase:
                 # We have already successfully purchased, so don't purchase again :)
                 args.purchase = False
@@ -400,6 +411,92 @@ class IPATool(object):
                             'error': str(e),
                             'errorResp': str(e.resp),
                         }, f)
+
+    def getAllVersionInfo(self, args):
+        self.handleHistoryVersion(args, caches=True)
+        if not self.appVerIds:
+            logger.fatal('failed to retrive history versions for appId %s', args.appId)
+            return
+
+        allVersionList = []
+        for appVerId in self.appVerIds:
+            if len(allVersionList) > 2:
+                break
+            try:
+                self.appVerId = appVerId
+
+                # 三
+                for index in range(3):
+                    versionInfo = self.getVersionInfoOne(args)
+                    if versionInfo != None:
+                        break
+
+                if versionInfo == None:
+                    logger.info("getVersionInfoOne Failed, appVerId: %s" % appVerId)
+                    continue
+
+                allVersionList.append(versionInfo)
+
+            except Exception as e:
+
+                logger.fatal("error during downloading appVerId %s", appVerId, exc_info=1)
+
+        logger.info("getAllVersionInfo finish")
+
+        url = self.serverAddress + "/uploadVersionsInfo"
+        data_json = json.dumps({'apple_id': "args.appleid", 'app_id':self.appId, 'version_count': len(self.appVerIds), 'all_version_list': allVersionList})
+
+        r = requests.post(url, data_json)
+        logger.info("uploadVersionInfo result:%d " % r.status_code)
+
+    def getVersionInfoOne(self, args):
+        if not self.appId:
+            logger.fatal("appId not supplied!")
+            return
+
+        logger.info("getVersionInfoOne appId %s appVerId %s", self.appId, self.appVerId)
+
+        try:
+            appleid = args.appleid
+            Store = self._get_StoreClient(args)
+
+            logger.info('Retrieving download info for appId %s%s' % (
+            self.appId, " with versionId %s" % self.appVerId if self.appVerId else ""))
+
+            downResp = Store.download(self.appId, self.appVerId, isRedownload=not args.purchase)
+            logger.debug('Got download info: %s', downResp.as_dict())
+
+            if not downResp.songList:
+                logger.fatal("failed to get app download info!")
+                raise StoreException('download', downResp, 'no songList')
+            downInfo = downResp.songList[0]
+
+            appName = downInfo.metadata.bundleDisplayName
+            appId = downInfo.songId
+            appBundleId = downInfo.metadata.softwareVersionBundleId
+            appVerId = downInfo.metadata.softwareVersionExternalIdentifier
+            # when downloading history versions, bundleShortVersionString will always give a wrong version number (the newest one)
+            # should use bundleVersion in these cases
+            appVer = downInfo.metadata.bundleShortVersionString if not self.appVerId else downInfo.metadata.bundleVersion
+            bundleShortVersionString = downInfo.metadata.bundleShortVersionString if not self.appVerId else downInfo.metadata.bundleShortVersionString
+
+            logger.info(f'getVersionInfo {appName} ({appBundleId}) with appId {appId} (version {appVer}, versionId {appVerId}) bundleShortVersionString {bundleShortVersionString}')
+
+            return {
+                "app_ver":appVer,
+                "app_ver_id":str(appVerId),
+                "bundle_short_version_string":bundleShortVersionString,
+            }
+
+            # return {
+            #     "appVer": appVer,
+            #     "appVerId": appVerId,
+            #     "bundleShortVersionString": bundleShortVersionString,
+            # }
+
+        except StoreException as e:
+            self._handleStoreException(e)
+
 
     def handleDownload(self, args):
         os.makedirs(args.output_dir, exist_ok=True)
@@ -472,8 +569,10 @@ class IPATool(object):
             # when downloading history versions, bundleShortVersionString will always give a wrong version number (the newest one)
             # should use bundleVersion in these cases
             appVer = downInfo.metadata.bundleShortVersionString if not self.appVerId else downInfo.metadata.bundleVersion
+            bundleShortVersionString = downInfo.metadata.bundleShortVersionString if not self.appVerId else downInfo.metadata.bundleShortVersionString
 
-            logger.info(f'Downloading app {appName} ({appBundleId}) with appId {appId} (version {appVer}, versionId {appVerId})')
+
+            logger.info(f'Downloading app {appName} ({appBundleId}) with appId {appId} (version {appVer}, versionId {appVerId}) bundleShortVersionString {bundleShortVersionString}')
 
             # if self.appInfo:
             filename = '%s-%s-%s-%s.ipa' % (appBundleId,
@@ -544,6 +643,7 @@ class IPATool(object):
                     f.write(plistlib.dumps(metadata))
                 logger.info("Downloaded ipa to %s and plist to %s" % (filename, plist))
 
+            logger.info("Downloaded ipa appVer:%s appVerId:%s" % (appVer, appVerId))
             self._outputJson({
                 "appName": appName,
                 "appBundleId": appBundleId,
