@@ -660,26 +660,50 @@ class IPATool(object):
         except StoreException as e:
             self._handleStoreException(e)
 
+
+    def uploadAllVersionInfo(self):
+        args_str = ['getAllVersionInfo', '-s', 'http://127.0.0.1:9000', '--appId', '583376064']
+        commparser = argparse.ArgumentParser(description='IPATool-Python Commands.', add_help=False)
+        subp = commparser.add_subparsers(dest='command', required=True)
+
+        getVer_p = subp.add_parser('getAllVersionInfo')
+        getVer_p.add_argument('--appId', '-i', dest='appId')
+        getVer_p.add_argument('--purchase', action='store_true')
+        getVer_p.add_argument('--output-dir', '-o', dest='output_dir', default='.')
+        getVer_p.add_argument('--appleid', '-e')
+        getVer_p.add_argument('--password', '-p')
+        getVer_p.add_argument('--session-dir', dest='session_dir', default=None)
+        getVer_p.add_argument('--itunes-server', '-s', dest='itunes_server')
+        getVer_p.set_defaults(func=self.getAllVersionInfo)
+
+        args, rest = commparser.parse_known_args(args_str)
+        self.getAllVersionInfo(args)
+
+
+    def downloadIpa(self):
+        args_str = ['getAllVersionInfo', '-s', 'http://127.0.0.1:9000', '--appId', '583376064']
+        commparser = argparse.ArgumentParser(description='IPATool-Python Commands.', add_help=False)
+        subp = commparser.add_subparsers(dest='command', required=True)
+
+        getVer_p = subp.add_parser('getAllVersionInfo')
+        getVer_p.add_argument('--appId', '-i', dest='appId')
+        getVer_p.add_argument('--purchase', action='store_true')
+        getVer_p.add_argument('--output-dir', '-o', dest='output_dir', default='.')
+        getVer_p.add_argument('--appleid', '-e')
+        getVer_p.add_argument('--password', '-p')
+        getVer_p.add_argument('--session-dir', dest='session_dir', default=None)
+        getVer_p.add_argument('--itunes-server', '-s', dest='itunes_server')
+        getVer_p.set_defaults(func=self.getAllVersionInfo)
+
+        args, rest = commparser.parse_known_args(args_str)
+        self.getAllVersionInfo(args)
+
 def main():
     tool = IPATool()
     # tool.tool_main()
+    tool.uploadAllVersionInfo()
+    tool.downloadIpa()
 
-    args_str = ['getAllVersionInfo', '-s', 'http://127.0.0.1:9000', '--appId', '583376064']
-    commparser = argparse.ArgumentParser(description='IPATool-Python Commands.', add_help=False)
-    subp = commparser.add_subparsers(dest='command', required=True)
-
-    getVer_p = subp.add_parser('getAllVersionInfo')
-    getVer_p.add_argument('--appId', '-i', dest='appId')
-    getVer_p.add_argument('--purchase', action='store_true')
-    getVer_p.add_argument('--output-dir', '-o', dest='output_dir', default='.')
-    getVer_p.add_argument('--appleid', '-e')
-    getVer_p.add_argument('--password', '-p')
-    getVer_p.add_argument('--session-dir', dest='session_dir', default=None)
-    getVer_p.add_argument('--itunes-server', '-s', dest='itunes_server')
-    getVer_p.set_defaults(func=tool.getAllVersionInfo)
-
-    args, rest = commparser.parse_known_args(args_str)
-    tool.getAllVersionInfo(args)
 
 if __name__ == '__main__':
     main()
